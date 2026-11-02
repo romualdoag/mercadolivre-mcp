@@ -310,3 +310,148 @@ export async function getOwnItems(
     item_ids: raw.results ?? [],
   };
 }
+
+export interface SellerProfile {
+  id: number;
+  nickname: string;
+  permalink: string;
+  seller_level: string | null;
+  transactions_total: number | null;
+  ratings_positive: number | null;
+  registration_date: string;
+}
+
+/** Perfil público do vendedor (reputação, nível, transações). */
+export async function getSellerProfile(
+  client: MlClient,
+  sellerId: number,
+): Promise<SellerProfile> {
+  if (!Number.isInteger(sellerId) || sellerId <= 0)
+    throw new Error(`seller_id inválido: ${sellerId}`);
+  const u = await client.get<Record<string, unknown>>(`/users/${sellerId}`);
+  const rep = (u.seller_reputation ?? {}) as Record<string, unknown>;
+  const tx = (rep.transactions ?? {}) as Record<string, unknown>;
+  const ratings = (tx.ratings ?? {}) as Record<string, unknown>;
+  return {
+    id: typeof u.id === "number" ? u.id : sellerId,
+    nickname: String(u.nickname ?? ""),
+    permalink: String(u.permalink ?? ""),
+    seller_level: typeof rep.level_id === "string" ? rep.level_id : null,
+    transactions_total: typeof tx.total === "number" ? tx.total : null,
+    ratings_positive:
+      typeof ratings.positive === "number" ? ratings.positive : null,
+    registration_date: String(u.registration_date ?? ""),
+  };
+}
+
+export interface CategoryNode {
+  id: string;
+  name: string;
+  permalink: string;
+  total_items: number;
+  path: { id: string; name: string }[];
+  children: { id: string; name: string; total_items: number }[];
+}
+
+/**
+ * Navega a árvore de categorias (ponto de partida: category_id de um
+ * anúncio via get_item, ou descendo por children).
+ */
+export async function browseCategory(
+  client: MlClient,
+  categoryId: string,
+): Promise<CategoryNode> {
+  const id = checkId(categoryId, "category_id");
+  const c = await client.get<Record<string, unknown>>(`/categories/${id}`);
+  const path = Array.isArray(c.path_from_root)
+    ? (c.path_from_root as Record<string, unknown>[]).map((p) => ({
+        id: String(p.id ?? ""),
+        name: String(p.name ?? ""),
+      }))
+    : [];
+  const children = Array.isArray(c.children_categories)
+    ? (c.children_categories as Record<string, unknown>[]).map((k) => ({
+        id: String(k.id ?? ""),
+        name: String(k.name ?? ""),
+        total_items:
+          typeof k.total_items_in_this_category === "number"
+            ? k.total_items_in_this_category
+            : 0,
+      }))
+    : [];
+  return {
+    id: String(c.id ?? id),
+    name: String(c.name ?? ""),
+    permalink: String(c.permalink ?? ""),
+    total_items:
+      typeof c.total_items_in_this_category === "number"
+        ? c.total_items_in_this_category
+        : 0,
+    path,
+    children,
+  };
+}
+
+export interface TrendKeyword {
+  keyword: string;
+  url: string;
+}
+
+/** Termos em alta numa categoria (descoberta pública, até 50). */
+export async function getTrends(
+  client: MlClient,
+  site: string,
+  categoryId: string,
+): Promise<{ category: string; count: number; keywords: TrendKeyword[] }> {
+  const id = checkId(categoryId, "category_id");
+  const rows = await client.get<{ keyword: string; url: string }[]>(
+    `/trends/${site}/${id}`,
+  );
+  return {
+    category: id,
+    count: rows.length,
+    keywords: rows.map((r) => ({
+      keyword: String(r.keyword ?? ""),
+      url: String(r.url ?? ""),
+    })),
+  };
+}
+
+export interface ItemQuestion {
+  id: number;
+  text: string;
+  status: string;
+  date: string;
+  answer_text: string | null;
+  answer_date: string | null;
+}
+
+/** Perguntas e respostas públicas de um anúncio. */
+export async function getItemQuestions(
+  client: MlClient,
+  itemId: string,
+  opts: { limit?: number } = {},
+): Promise<{ item_id: string; total: number; questions: ItemQuestion[] }> {
+  const id = checkId(itemId, "item_id");
+  const raw = await client.get<{
+    total?: number;
+    questions?: Record<string, unknown>[];
+  }>("/questions/search", {
+    item: id,
+    limit: Math.min(Math.max(opts.limit ?? 10, 1), 50),
+  });
+  const questions = (raw.questions ?? []).map((q) => {
+    const ans = (q.answer ?? null) as Record<string, unknown> | null;
+    return {
+      id: typeof q.id === "number" ? q.id : 0,
+      text: String(q.text ?? ""),
+      status: String(q.status ?? ""),
+      date: String(q.date_created ?? ""),
+      answer_text:
+        ans && typeof ans.text === "string" && ans.text ? ans.text : null,
+      answer_date:
+        ans && typeof ans.date_created === "string" ? ans.date_created : null,
+    };
+  });
+  return { item_id: id, total: raw.total ?? questions.length, questions };
+}

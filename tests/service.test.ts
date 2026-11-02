@@ -2,11 +2,15 @@
 import { describe, expect, it } from "vitest";
 import { MlClient, MlApiError } from "../src/ml.js";
 import {
+  browseCategory,
   getItem,
+  getItemQuestions,
   getItems,
   getOwnItems,
   getProduct,
   getSellerItems,
+  getSellerProfile,
+  getTrends,
   searchProducts,
 } from "../src/service.js";
 
@@ -108,6 +112,43 @@ const baseRoutes = {
       seller_id: 82413831,
       paging: { total: 1 },
       results: ["MLB4746731943"],
+    }),
+  "/users/82413831": () =>
+    jsonRes({
+      id: 82413831,
+      nickname: "ROMUALDO_AG",
+      permalink: "https://exemplo/seller",
+      registration_date: "2005-07-06T13:27:13.000-04:00",
+      seller_reputation: {
+        level_id: "5_green",
+        transactions: { total: 3, ratings: { positive: 0 } },
+      },
+    }),
+  "/categories/MLB1051": () =>
+    jsonRes({
+      id: "MLB1051",
+      name: "Celulares e Telefones",
+      permalink: "https://exemplo/cat",
+      total_items_in_this_category: 100,
+      path_from_root: [{ id: "MLB1051", name: "Celulares e Telefones" }],
+      children_categories: [
+        { id: "MLB3813", name: "Acessórios", total_items_in_this_category: 50 },
+      ],
+    }),
+  "/trends/MLB/MLB1051": () =>
+    jsonRes([{ keyword: "iphone", url: "https://exemplo/iphone" }]),
+  "/questions/search": () =>
+    jsonRes({
+      total: 1,
+      questions: [
+        {
+          id: 1,
+          text: "Tem garantia?",
+          status: "ANSWERED",
+          date_created: "2026-01-01T00:00:00Z",
+          answer: { text: "Sim", date_created: "2026-01-02T00:00:00Z" },
+        },
+      ],
     }),
 };
 
@@ -226,5 +267,43 @@ describe("getSellerItems / getOwnItems", () => {
     const err = await searchProducts(c, "MLB", { q: "x" }).catch((e) => e);
     expect(err).toBeInstanceOf(MlApiError);
     expect(String(err.message)).toMatch(/unknown/);
+  });
+});
+
+describe("perfil, categoria, trends, perguntas", () => {
+  it("mapeia reputação do vendedor", async () => {
+    const c = new MlClient(CFG, stubFetch(baseRoutes));
+    const p = await getSellerProfile(c, 82413831);
+    expect(p.nickname).toBe("ROMUALDO_AG");
+    expect(p.transactions_total).toBe(3);
+  });
+
+  it("seller_id inválido falha local", async () => {
+    const c = new MlClient(CFG, stubFetch(baseRoutes));
+    await expect(getSellerProfile(c, -1)).rejects.toThrow(/inválido/);
+  });
+
+  it("mapeia árvore de categoria", async () => {
+    const c = new MlClient(CFG, stubFetch(baseRoutes));
+    const n = await browseCategory(c, "MLB1051");
+    expect(n.name).toBe("Celulares e Telefones");
+    expect(n.children[0]).toMatchObject({ id: "MLB3813", total_items: 50 });
+  });
+
+  it("lista termos em alta", async () => {
+    const c = new MlClient(CFG, stubFetch(baseRoutes));
+    const t = await getTrends(c, "MLB", "MLB1051");
+    expect(t.count).toBe(1);
+    expect(t.keywords[0].keyword).toBe("iphone");
+  });
+
+  it("mapeia perguntas e respostas", async () => {
+    const c = new MlClient(CFG, stubFetch(baseRoutes));
+    const r = await getItemQuestions(c, "MLB4746731943");
+    expect(r.total).toBe(1);
+    expect(r.questions[0]).toMatchObject({
+      text: "Tem garantia?",
+      answer_text: "Sim",
+    });
   });
 });

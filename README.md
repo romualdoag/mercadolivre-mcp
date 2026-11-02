@@ -6,12 +6,15 @@ Livre Brasil via `api.mercadolibre.com`.
 Tools: `search_products` (catálogo: keywords, GTIN ou domínio — sem preço),
 `get_product` (ficha + variações), `get_item` / `get_items` (preço por id
 de anúncio, bulk até 20), `get_seller_items` (anúncios com preço por
-`seller_id`), `get_own_items` (anúncios da própria conta).
+`seller_id`), `get_seller_profile` (reputação/nível), `browse_category`
+(árvore de categorias), `get_trends` (termos em alta), `get_item_questions`
+(Q&A público), `get_own_items` (anúncios da própria conta).
 
-> Catálogo não tem preço — preço vive no anúncio. Fluxo típico:
-> `search_products` (descobre) → `get_item` com o id do link (preço).
-> A busca pública `/sites/*/search` é bloqueada na borda para este app;
-> o server nem tenta esse endpoint.
+> Catálogo não tem preço — preço vive no anúncio. Fluxos típicos:
+> `search_products` (descobre) → `get_item` com o id do link (preço);
+> `get_item` → `seller_id` → `get_seller_items` + `get_seller_profile`.
+> A busca pública `/sites/*/search` é bloqueada na borda para este app
+> (IP de datacenter); o server nem tenta esse endpoint.
 
 ## Pré-requisito: permissões funcionais do app
 

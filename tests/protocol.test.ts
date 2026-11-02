@@ -19,6 +19,10 @@ const EXPECTED_TOOLS = [
   "get_item",
   "get_items",
   "get_seller_items",
+  "get_seller_profile",
+  "browse_category",
+  "get_trends",
+  "get_item_questions",
   "get_own_items",
 ];
 

@@ -20,11 +20,15 @@ import { z } from "zod";
 import { createRequire } from "node:module";
 import { MlClient, configFromEnv } from "./ml.js";
 import {
+  browseCategory,
   getItem,
+  getItemQuestions,
   getItems,
   getOwnItems,
   getProduct,
   getSellerItems,
+  getSellerProfile,
+  getTrends,
   searchProducts,
 } from "./service.js";
 
@@ -179,6 +183,85 @@ server.registerTool(
   async (args): Promise<TextResult> => {
     try {
       return asText(await getOwnItems(ml(), args));
+    } catch (e) {
+      return asError(e);
+    }
+  },
+);
+
+server.registerTool(
+  "get_seller_profile",
+  {
+    title: "Reputação do vendedor",
+    description:
+      "Perfil público do vendedor: nickname, nível, total de transações e " +
+      "avaliações positivas. Para achar o seller_id, abra qualquer anúncio " +
+      "dele com get_item.",
+    inputSchema: {
+      seller_id: z.coerce.number().int().describe("id numérico do vendedor"),
+    },
+  },
+  async ({ seller_id }): Promise<TextResult> => {
+    try {
+      return asText(await getSellerProfile(ml(), seller_id));
+    } catch (e) {
+      return asError(e);
+    }
+  },
+);
+
+server.registerTool(
+  "browse_category",
+  {
+    title: "Navegar categorias",
+    description:
+      "Árvore de categorias: caminho até a raiz, total de anúncios e " +
+      "subcategorias. Ponto de partida: category_id de um anúncio.",
+    inputSchema: {
+      category_id: z.string().describe("id da categoria (ex. MLB1051)"),
+    },
+  },
+  async ({ category_id }): Promise<TextResult> => {
+    try {
+      return asText(await browseCategory(ml(), category_id));
+    } catch (e) {
+      return asError(e);
+    }
+  },
+);
+
+server.registerTool(
+  "get_trends",
+  {
+    title: "Termos em alta",
+    description:
+      "Termos mais buscados numa categoria (descoberta pública do que está quente).",
+    inputSchema: {
+      category_id: z.string().describe("id da categoria (ex. MLB1051)"),
+    },
+  },
+  async ({ category_id }): Promise<TextResult> => {
+    try {
+      return asText(await getTrends(ml(), site(), category_id));
+    } catch (e) {
+      return asError(e);
+    }
+  },
+);
+
+server.registerTool(
+  "get_item_questions",
+  {
+    title: "Perguntas do anúncio",
+    description: "Perguntas e respostas públicas de um anúncio.",
+    inputSchema: {
+      item_id: z.string().describe("id do anúncio"),
+      limit: z.coerce.number().int().min(1).max(50).default(10),
+    },
+  },
+  async ({ item_id, limit }): Promise<TextResult> => {
+    try {
+      return asText(await getItemQuestions(ml(), item_id, { limit }));
     } catch (e) {
       return asError(e);
     }
