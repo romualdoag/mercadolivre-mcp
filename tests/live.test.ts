@@ -1,0 +1,46 @@
+/**
+ * Live (opt-in): exige credenciais reais + permissões funcionais no app.
+ * Roda só com ML_LIVE=1 — `npm test` padrão pula este arquivo.
+ */
+import { describe, expect, it } from "vitest";
+import { MlClient, configFromEnv } from "../src/ml.js";
+import { getItem, getOwnItems, getProduct, searchProducts } from "../src/service.js";
+
+const LIVE = process.env.ML_LIVE === "1";
+
+describe.skipIf(!LIVE)("live api.mercadolibre.com", () => {
+  it("users/me retorna o dono do token", async () => {
+    const c = new MlClient(configFromEnv());
+    const me = await c.get<{ id: number; nickname: string }>("/users/me");
+    expect(me.id).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("search de catálogo retorna produtos", async () => {
+    const c = new MlClient(configFromEnv());
+    const r = await searchProducts(c, process.env.ML_SITE_ID ?? "MLB", {
+      q: "camiseta preta",
+      limit: 3,
+    });
+    expect(r.results.length).toBeGreaterThan(0);
+    expect(r.results[0].id).toMatch(/^[A-Z]{3}\d+$/);
+    expect(r.results[0].name.length).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("getProduct + getItem encadeiam (catálogo → anúncio)", async () => {
+    const c = new MlClient(configFromEnv());
+    const r = await searchProducts(c, process.env.ML_SITE_ID ?? "MLB", {
+      q: "olympus e-m10",
+      limit: 2,
+    });
+    const p = await getProduct(c, r.results[0].id);
+    expect(p.name.length).toBeGreaterThan(0);
+    const d = await getItem(c, "MLB4746731943");
+    expect(d.price).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("getOwnItems lista a conta", async () => {
+    const c = new MlClient(configFromEnv());
+    const r = await getOwnItems(c, { limit: 5 });
+    expect(r.seller_id).toBeGreaterThan(0);
+  }, 60_000);
+});

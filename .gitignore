@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+# Estado de tokens OAuth (segredo rotativo, descartável) — nunca commitar.
+.ml-tokens.json
+*.log
+.DS_Store
+# Cache frio local (dados de terceiros, descartável) — nunca commitar.
+*.sqlite*
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
