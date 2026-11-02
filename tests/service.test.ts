@@ -4,11 +4,11 @@ import { MlClient, MlApiError } from "../src/ml.js";
 import {
   browseCategory,
   getItem,
+  getItemDescription,
   getItemQuestions,
   getItems,
   getOwnItems,
   getProduct,
-  getSellerItems,
   getSellerProfile,
   getTrends,
   searchProducts,
@@ -103,6 +103,8 @@ const baseRoutes = {
   ...TOKEN_ROUTE,
   "/products/search": () => jsonRes(CATALOG_FIXTURE),
   "/products/MLB52753326": () => jsonRes(PRODUCT_FIXTURE),
+  "/items/MLB4746731943/description": () =>
+    jsonRes({ text: "t", plain_text: "Bateria 81%. Impecável." }),
   "/items/MLB4746731943": () => jsonRes(ITEM_FIXTURE),
   "/items/bulk": () =>
     jsonRes([{ status_code: 200, id: "MLB4746731943", body: ITEM_FIXTURE }]),
@@ -242,13 +244,20 @@ describe("getItem / getItems", () => {
     await expect(getItems(c, [])).rejects.toThrow();
     await expect(getItems(c, Array(21).fill("MLB1"))).rejects.toThrow(/máximo/);
   });
+
+  it("lê descrição do anúncio", async () => {
+    const c = new MlClient(CFG, stubFetch(baseRoutes));
+    const d = await getItemDescription(c, "MLB4746731943");
+    expect(d.plain_text).toMatch(/Bateria 81%/);
+  });
 });
 
-describe("getSellerItems / getOwnItems", () => {
-  it("resolve ids do vendedor em detalhes", async () => {
+describe("getOwnItems", () => {
+  it("getOwnItems inclui detalhes via bulk", async () => {
     const c = new MlClient(CFG, stubFetch(baseRoutes));
-    const r = await getSellerItems(c, { seller_id: 82413831 });
+    const r = await getOwnItems(c, {});
     expect(r.seller_id).toBe(82413831);
+    expect(r.item_ids).toEqual(["MLB4746731943"]);
     expect(r.items).toHaveLength(1);
     expect(r.items[0].price).toBe(5100);
   });

@@ -4,17 +4,17 @@ MCP server (stdio, uso pessoal): busca e detalhe de produtos no Mercado
 Livre Brasil via `api.mercadolibre.com`.
 
 Tools: `search_products` (catálogo: keywords, GTIN ou domínio — sem preço),
-`get_product` (ficha + variações), `get_item` / `get_items` (preço por id
-de anúncio, bulk até 20), `get_seller_items` (anúncios com preço por
-`seller_id`), `get_seller_profile` (reputação/nível), `browse_category`
+`get_product` (ficha + variações), `get_item` / `get_items` (preço dos
+anúncios da PRÓPRIA conta), `get_item_description` (texto do anúncio, vale
+para terceiros), `get_seller_profile` (reputação/nível), `browse_category`
 (árvore de categorias), `get_trends` (termos em alta), `get_item_questions`
-(Q&A público), `get_own_items` (anúncios da própria conta).
+(Q&A público), `get_own_items` (anúncios da própria conta, com detalhes).
 
-> Catálogo não tem preço — preço vive no anúncio. Fluxos típicos:
-> `search_products` (descobre) → `get_item` com o id do link (preço);
-> `get_item` → `seller_id` → `get_seller_items` + `get_seller_profile`.
-> A busca pública `/sites/*/search` é bloqueada na borda para este app
-> (IP de datacenter); o server nem tenta esse endpoint.
+> Limite real da API: preço e detalhe de anúncio existem só para a própria
+> conta (token do dono) — terceiros dão 403 `access_denied`, e a busca
+> pública `/sites/*/search` é bloqueada na borda (IP de datacenter).
+> Fluxos típicos: `search_products` (descobre) → links → `get_item`;
+> `get_own_items` (preços da sua conta).
 
 ## Pré-requisito: permissões funcionais do app
 

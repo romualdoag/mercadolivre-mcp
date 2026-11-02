@@ -239,7 +239,12 @@ export async function getItems(
   if (ids.length > MAX_BULK)
     throw new Error(`máximo de ${MAX_BULK} ids por chamada`);
   const raw = await client.get<
-    { status_code: number; id?: string; body?: Record<string, unknown> }[]
+    {
+      status_code?: number;
+      id?: string;
+      body?: Record<string, unknown>;
+      error?: { message?: string };
+    }[]
   >("/items/bulk", {
     ids: ids.join(","),
     attributes:
@@ -248,53 +253,38 @@ export async function getItems(
   return {
     count: raw.length,
     items: raw.map((e) => {
-      const id = String(e.id ?? "");
-      if (e.status_code !== 200 || !e.body)
-        return { id, ok: false as const, error: `ML ${e.status_code}` };
-      return { id, ok: true as const, item: detailOf(e.body) };
+      // Com attributes=body.* o bulk omite status_code/id e devolve só {body}.
+      const body =
+        e.body && typeof e.body === "object"
+          ? (e.body as Record<string, unknown>)
+          : undefined;
+      const id = String(e.id ?? body?.id ?? "");
+      if (body) return { id, ok: true as const, item: detailOf(body) };
+      const detail =
+        e.error && typeof e.error.message === "string"
+          ? `: ${e.error.message}`
+          : "";
+      return {
+        id,
+        ok: false as const,
+        error: `ML ${e.status_code ?? "?"}${detail}`,
+      };
     }),
   };
 }
 
-export interface SellerItemsResult {
+/** Anúncios da própria conta (token owner), com detalhes via bulk. */
+export async function getOwnItems(
+  client: MlClient,
+  opts: { status?: string; limit?: number; offset?: number; details?: boolean } = {},
+): Promise<{
   seller_id: number;
   paging: { total: number };
   truncated: boolean;
+  item_ids: string[];
   items: ItemDetail[];
-}
-
-/** Anúncios ativos de um vendedor, já com detalhes (via bulk). */
-export async function getSellerItems(
-  client: MlClient,
-  opts: { seller_id: number; limit?: number; offset?: number; status?: string },
-): Promise<SellerItemsResult> {
-  const limit = Math.min(Math.max(opts.limit ?? 10, 1), MAX_BULK);
-  const list = await client.get<{
-    paging?: { total: number };
-    results?: string[];
-  }>(`/users/${opts.seller_id}/items/search`, {
-    status: opts.status ?? "active",
-    limit,
-    offset: opts.offset ?? 0,
-  });
-  const ids = list.results ?? [];
-  const total = list.paging?.total ?? ids.length;
-  if (ids.length === 0)
-    return { seller_id: opts.seller_id, paging: { total }, truncated: total > 0, items: [] };
-  const bulk = await getItems(client, ids);
-  return {
-    seller_id: opts.seller_id,
-    paging: { total },
-    truncated: total > ids.length,
-    items: bulk.items.flatMap((i) => (i.ok && i.item ? [i.item] : [])),
-  };
-}
-
-/** Anúncios da própria conta (token owner). */
-export async function getOwnItems(
-  client: MlClient,
-  opts: { status?: string; limit?: number; offset?: number } = {},
-): Promise<{ seller_id: number; paging: { total: number }; item_ids: string[] }> {
+  details_truncated: boolean;
+}> {
   const me = await client.ownUserId();
   const raw = await client.get<{
     paging?: { total: number };
@@ -304,10 +294,23 @@ export async function getOwnItems(
     limit: Math.min(Math.max(opts.limit ?? 50, 1), 100),
     offset: opts.offset ?? 0,
   });
+  const ids = raw.results ?? [];
+  const total = raw.paging?.total ?? ids.length;
+  let items: ItemDetail[] = [];
+  let details_truncated = false;
+  if (opts.details !== false && ids.length > 0) {
+    const slice = ids.slice(0, MAX_BULK);
+    details_truncated = ids.length > slice.length;
+    const bulk = await getItems(client, slice);
+    items = bulk.items.flatMap((i) => (i.ok && i.item ? [i.item] : []));
+  }
   return {
     seller_id: me,
-    paging: { total: raw.paging?.total ?? (raw.results ?? []).length },
-    item_ids: raw.results ?? [],
+    paging: { total },
+    truncated: total > ids.length,
+    item_ids: ids,
+    items,
+    details_truncated,
   };
 }
 
@@ -454,4 +457,19 @@ export async function getItemQuestions(
     };
   });
   return { item_id: id, total: raw.total ?? questions.length, questions };
+}
+
+/**
+ * Descrição do anúncio (texto livre; costuma citar estado/bateria em usados).
+ * Leitura pública — funciona também para anúncios de terceiros.
+ */
+export async function getItemDescription(
+  client: MlClient,
+  itemId: string,
+): Promise<{ item_id: string; plain_text: string }> {
+  const id = checkId(itemId, "item_id");
+  const raw = await client.get<{ plain_text?: string }>(
+    `/items/${id}/description`,
+  );
+  return { item_id: id, plain_text: raw.plain_text ?? "" };
 }

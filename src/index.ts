@@ -7,8 +7,7 @@
  * - search_products(q|product_identifier, ...): descoberta no catálogo.
  * - get_product(product_id): ficha do produto (atributos, variações).
  * - get_item(item_id): preço/detalhe de um anúncio (id do link).
- * - get_items(item_ids): vários anúncios (bulk, até 20).
- * - get_seller_items(seller_id, ...): anúncios ativos de um vendedor.
+ * - get_items(item_ids): vários anúncios da própria conta (bulk, até 20).
  * - get_own_items(status): anúncios da própria conta.
  *
  * Catálogo não tem preço — preço vive no anúncio. Nunca inventa números:
@@ -22,11 +21,11 @@ import { MlClient, configFromEnv } from "./ml.js";
 import {
   browseCategory,
   getItem,
+  getItemDescription,
   getItemQuestions,
   getItems,
   getOwnItems,
   getProduct,
-  getSellerItems,
   getSellerProfile,
   getTrends,
   searchProducts,
@@ -111,7 +110,8 @@ server.registerTool(
   {
     title: "Preço do anúncio",
     description:
-      "Preço e detalhe de um anúncio (id MLB do link do produto).",
+      "Preço e detalhe de um anúncio da PRÓPRIA conta (a API nega " +
+      "anúncios de terceiros com este token).",
     inputSchema: {
       item_id: z.string().describe("id do anúncio (ex. MLB4746731943)"),
     },
@@ -129,7 +129,8 @@ server.registerTool(
   "get_items",
   {
     title: "Preços em lote",
-    description: "Preço/detalhe de até 20 anúncios numa chamada.",
+    description:
+      "Preço/detalhe de até 20 anúncios da própria conta numa chamada.",
     inputSchema: {
       item_ids: z
         .array(z.string())
@@ -148,36 +149,17 @@ server.registerTool(
 );
 
 server.registerTool(
-  "get_seller_items",
-  {
-    title: "Anúncios do vendedor",
-    description:
-      "Anúncios ativos de um vendedor (com preço), por seller_id numérico.",
-    inputSchema: {
-      seller_id: z.coerce.number().int().describe("id numérico do vendedor"),
-      limit: z.coerce.number().int().min(1).max(20).default(10),
-      offset: z.coerce.number().int().min(0).default(0),
-      status: z.string().default("active"),
-    },
-  },
-  async (args): Promise<TextResult> => {
-    try {
-      return asText(await getSellerItems(ml(), args));
-    } catch (e) {
-      return asError(e);
-    }
-  },
-);
-
-server.registerTool(
   "get_own_items",
   {
     title: "Meus anúncios",
-    description: "Lista os anúncios da própria conta (dona do token).",
+    description:
+      "Anúncios da própria conta (dona do token) com preço e detalhes. " +
+      "A API do ML só permite listar a própria conta.",
     inputSchema: {
       status: z.string().default("active").describe("active, paused, closed..."),
       limit: z.coerce.number().int().min(1).max(100).default(50),
       offset: z.coerce.number().int().min(0).default(0),
+      details: z.boolean().default(true).describe("inclui preço/detalhes via bulk"),
     },
   },
   async (args): Promise<TextResult> => {
@@ -262,6 +244,26 @@ server.registerTool(
   async ({ item_id, limit }): Promise<TextResult> => {
     try {
       return asText(await getItemQuestions(ml(), item_id, { limit }));
+    } catch (e) {
+      return asError(e);
+    }
+  },
+);
+
+server.registerTool(
+  "get_item_description",
+  {
+    title: "Descrição do anúncio",
+    description:
+      "Texto da descrição de um anúncio (vale para terceiros; útil para " +
+      "conferir estado/bateria mencionados em usados). Sem preço.",
+    inputSchema: {
+      item_id: z.string().describe("id do anúncio"),
+    },
+  },
+  async ({ item_id }): Promise<TextResult> => {
+    try {
+      return asText(await getItemDescription(ml(), item_id));
     } catch (e) {
       return asError(e);
     }

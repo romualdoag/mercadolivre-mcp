@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { MlClient, configFromEnv } from "../src/ml.js";
-import { browseCategory, getItem, getItemQuestions, getOwnItems, getProduct, getSellerProfile, getTrends, searchProducts } from "../src/service.js";
+import { browseCategory, getItem, getItemDescription, getItemQuestions, getOwnItems, getProduct, getSellerProfile, getTrends, searchProducts } from "../src/service.js";
 
 const LIVE = process.env.ML_LIVE === "1";
 
@@ -42,6 +42,15 @@ describe.skipIf(!LIVE)("live api.mercadolibre.com", () => {
     const c = new MlClient(configFromEnv());
     const r = await getOwnItems(c, { limit: 5 });
     expect(r.seller_id).toBeGreaterThan(0);
+    expect(r.items.length).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("descrição: própria conta e terceiro", async () => {
+    const c = new MlClient(configFromEnv());
+    const own = await getItemDescription(c, "MLB4746731943");
+    expect(typeof own.plain_text).toBe("string");
+    const third = await getItemDescription(c, "MLB3975661273");
+    expect(typeof third.plain_text).toBe("string");
   }, 60_000);
 
   it("fluxo público: trends → categoria → perfil → perguntas", async () => {

@@ -82,6 +82,14 @@ function friendlyMessage(status: number, body: unknown): string {
       : {};
   const code = typeof b.code === "string" ? b.code : undefined;
   const msg = typeof b.message === "string" ? b.message : undefined;
+  const err = typeof b.error === "string" ? b.error : undefined;
+  if (err === "access_denied" || code === "access_denied") {
+    return (
+      `ML 403: este dado existe só para a própria conta (token do dono do anúncio). ` +
+      `A API nega leitura de anúncios de terceiros com este token.` +
+      (msg ? ` Detalhe: ${msg}` : "")
+    );
+  }
   if (code === "PA_UNAUTHORIZED_RESULT_FROM_POLICIES" || status === 403) {
     return (
       `ML 403: app sem permissão para este recurso (PolicyAgent). ` +
